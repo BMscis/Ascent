@@ -1,6 +1,6 @@
-import * as backend from '../build/index.main.mjs'
 import {loadStdlib} from '@reach-sh/stdlib';
-import {AcceptAndPay,InsuranceAmount} from "./store/pStore"
+import * as backend from '../build/index.main.mjs'
+import {AcceptAndPay,CE,CrToken,InsuranceAmount, NewToken, TokenSent} from "./store/pStore"
 import { ALGO_MyAlgoConnect as MyAlgoConnect } from '@reach-sh/stdlib';
 const stdlib =  loadStdlib("ALGO")
 stdlib.setWalletFallback(stdlib.walletFallback({
@@ -10,6 +10,7 @@ class Participants {
     constructor(CtxInfo){
         this.CtxInfo = CtxInfo
     }
+    random() { return stdlib.hasRandom.random(); }
     async deploy (){
         console.log("Deploying")
         this.account = await stdlib.getDefaultAccount()
@@ -23,6 +24,13 @@ class Participants {
     async ShowPolicy (tkn) {
         this.account.tokenAccept(tkn)
         console.log("TOKEN: ", tkn)
+        if(this instanceof InsuredPartyInterface){
+            CE.set(true)
+            TokenSent.set(true)
+        }else{
+            NewToken.set(true)
+        }
+        
     }
 }
 export class InsurerInterface extends Participants{
@@ -38,10 +46,12 @@ export class InsurerInterface extends Participants{
     }
     async ShowMeta (x,y) {
         console.log("SHOW DIGEST: ", x)
-        console.log("SHOW DIGEST: ", x.substring(0,31))
         console.log("SHOW STAMP: ", y)
-        return [x]
+        return x
       }
+    async CreatingToken (){
+        CrToken.set(true)
+    }
 }
 export class InsuredPartyInterface extends Participants{
     constructor(ctx){
@@ -81,5 +91,15 @@ export class InsuredPartyInterface extends Participants{
             await accept
         }
         return this.AcceptAndPay
+    }
+    async GetExpiry(){
+        const [hasExpired, expiry,owned] = await this.contract.a.CheckExpiry.check(0)
+        if(owned){
+            console.log("Has expired: ", hasExpired)
+            console.log("Expiry: ", stdlib.bigNumberToNumber(expiry))
+            return [hasExpired,stdlib.bigNumberToNumber(expiry),owned]
+        }else{
+            return "You don't own this asset"
+        }
     }
 }

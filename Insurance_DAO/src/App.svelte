@@ -1,8 +1,7 @@
 <script>
 import { afterUpdate } from "svelte";
-
-import InsuredInterface from "./InsuredInterface.svelte";
 import InsuredParty from "./InsuredParty.svelte";
+import InsuredInterface from "./InsuredInterface.svelte";
 
 	export let participant = -1;
 
@@ -12,7 +11,7 @@ import InsuredParty from "./InsuredParty.svelte";
 </script>
 
 <main>
-	<label for="participant">Select A Participant</label>
+	<label for="participant">Are you looking for car Insurance ?</label>
 	<select id="participant" bind:value={participant}>
 		<option value=0>Deploy Insurance</option>
 		<option value=1> Insure Risk</option>

@@ -1,5 +1,4 @@
 'reach 0.1';
-
 const [VehiclePurpose, PRIVATE, COMMERCIAL,MOTORCYCLES] = makeEnum(3)
 const [InsuranceType, THIRDPARTY,COMPREHENSIVE] = makeEnum(2)
 const RISK = Struct([
@@ -35,16 +34,31 @@ const STAMP = Struct([
 ["Expiry_date", UInt]
 ])
 const POLICY = Struct([
-["Model", Bytes(32)],
-["Year",UInt],
-["InsuredParty",Address],
-["Licence_plate",Bytes(8)],
-["Vehicle_purpose", UInt],
-["Insurance_provided",UInt],
-["Valuation", UInt],
-["Kyc",Bytes(96)],
-["Consensus_time",UInt]
+  ["Model"             ,Bytes(32)],
+  ["Year"              ,UInt],
+  ["InsuredParty"      ,Address],
+  ["Licence_plate"     ,Bytes(8)],
+  ["Vehicle_purpose"   ,UInt],
+  ["Insurance_provided",UInt],
+  ["Valuation"         ,UInt],
+  ["Kyc"               ,Bytes(96)],
+  ["Consensus_time"    ,UInt],
+  ["Expiry_date"       ,UInt],
+  ["hash"              ,Digest]
 ])
+const POLICYOBJECT = Object({
+  "Model"             :Bytes(32),
+  "Year"              :UInt,
+  "InsuredParty"      :Address,
+  "Licence_plate"     :Bytes(8),
+  "Vehicle_purpose"   :UInt,
+  "Insurance_provided":UInt,
+  "Valuation"         :UInt,
+  "Kyc"               :Bytes(96),
+  "Consensus_time"    :UInt,
+  "Expiry_date"       :UInt,
+  "hash"              :Digest,
+})
 const STICKER =Struct([
   ["name",     Bytes(32)],
   ["symbol",   Bytes(8)],
@@ -61,13 +75,15 @@ const commercial_rate = 6
 const two_wheel_rate = 5
 const InsurerInterface = {
   StartingBalance:Fun([],Tuple(UInt,UInt)),
-  ShowMeta:Fun([Digest,STAMP],Tuple(Bytes(32)))
+  ShowMeta:Fun([Digest,POLICYOBJECT],Bytes(32)),
+  CreatingToken:Fun([],Null)
 }
 const InsuredPartyInterface = {
   Insure:Fun([],RISKOBJECT),
   PayInsurance:Fun([UInt], Bool)
 }
 const common = {
+  ...hasRandom,
   InformTimeout: Fun([],Null),
   ShowPolicy: Fun([Token],Null)
 }
@@ -109,7 +125,7 @@ export const main = Reach.App(() => {
     ...InsuredPartyInterface
   });
   const CheckExpiry = API("CheckExpiry", {
-    check: Fun([UInt],Bool)
+    check: Fun([UInt],Tuple(Bool,UInt,Bool))
   })
   init();
 
@@ -143,8 +159,10 @@ export const main = Reach.App(() => {
   .timeout(relativeTime(deadline), () => closeTo(Insurer,IT))
 
   const Customers = new Set()
+  const CustomerInsurance = new Map(POLICYOBJECT)
   Customers.insert(InsuredParty)
-  
+  const pT = thisConsensusTime()
+  const dL = pT + deadline
   const stamp =  [
     risk_to_insure.Model,
     risk_to_insure.Year,
@@ -154,15 +172,30 @@ export const main = Reach.App(() => {
     risk_to_insure.Insurance_provided,
     risk_to_insure.Valuation,
     risk_to_insure.Kyc,
-    thisConsensusTime(),
-    thisConsensusTime() + deadline
+    pT,
+    dL
   ]
   const metadata = digest(stamp)
-  const locked_policy = STAMP.fromTuple(stamp)
+  const locked_policy = POLICY.fromTuple([
+    risk_to_insure.Model,
+    risk_to_insure.Year,
+    risk_to_insure.InsuredParty,
+    risk_to_insure.Licence_plate,
+    risk_to_insure.Vehicle_purpose,
+    risk_to_insure.Insurance_provided,
+    risk_to_insure.Valuation,
+    risk_to_insure.Kyc,
+    pT,
+    dL,
+    metadata
+  ])
+
+  const lP = Struct.toObject(locked_policy)
+  CustomerInsurance[this] = lP
   commit();
   Insurer.only(()=>{
     //const [cmt,salt] = makeCommitment(stamp)
-    const [meta] = declassify(interact.ShowMeta(metadata,locked_policy))
+    const meta = declassify(interact.ShowMeta(metadata,lP))
   })
   Insurer.publish(meta)
   
@@ -179,11 +212,12 @@ export const main = Reach.App(() => {
   const INSURANCE = new Token(STICKER.toObject(POLICY_RIGHTS))
   require(INSURANCE.supply() == policy_amount)
   commit();
+ 
   each([Insurer,InsuredParty], () => interact.ShowPolicy(INSURANCE));
-
   Insurer.publish()
   transfer(balance()).to(Insurer)
   transfer(1,INSURANCE).to(InsuredParty)
+
   const [done] = parallelReduce([false])
   .invariant(
   balance() == 0 && 
@@ -195,8 +229,14 @@ export const main = Reach.App(() => {
     }),
     ((tn)=>0),
     ((tn, fn)=>{
-      require(Customers.member(this), "You are not insured")
-      fn(true)
+      require(Customers.member(this) , "You are not insured")
+      const mp = fromSome(CustomerInsurance[this],lP)
+      if(mp.InsuredParty == this){
+        const hasExpired = mp.Expiry_date < thisConsensusTime()
+        fn([hasExpired,mp.Expiry_date,true])
+      }else{
+        fn([false,0,false])
+      }
       return [true]
     }))
   INSURANCE.burn();

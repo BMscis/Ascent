@@ -1,6 +1,6 @@
 <script>
 import {InsuredPartyInterface} from "./participants"
-import {AcceptAndPay,InsuranceAmount} from "./store/pStore"
+import {AcceptAndPay,CE,InsuranceAmount, TokenSent} from "./store/pStore"
 let IP
 let Model
 let Year
@@ -13,6 +13,9 @@ let Ctx
 let AwaitPayment = false
 let payment = 0
 let makePay
+let checkExpiry = false
+let getExpiry = false
+let tokenSent = false
 const insure = async () => {
     const risk = {
         "Model": Model,
@@ -37,6 +40,10 @@ const unsub = InsuranceAmount.subscribe((val)=> {
         AwaitPayment = true
         payment = val
     }
+})
+const unsubC = CE.subscribe(val => {checkExpiry = val})
+const unsubT = TokenSent.subscribe(val => {
+    if(val){tokenSent = true}
 })
 </script>
 {#if !AwaitPayment}
@@ -67,9 +74,9 @@ const unsub = InsuranceAmount.subscribe((val)=> {
     <button type="submit">SUBMIT</button>
 </form>
 {/if}
-{#if AwaitPayment}
+{#if AwaitPayment && !checkExpiry}
 <div>Here's your insurance quote</div>
-<h2>{payment}</h2>
+<h3>Pay: </h3><h2>{payment}</h2>
 <form on:submit|preventDefault={payInsurance}>
 <select bind:value={makePay}>
     <option value="True">PAY</option>
@@ -77,4 +84,22 @@ const unsub = InsuranceAmount.subscribe((val)=> {
 </select>
 <button type="submit">SUBMIT</button>
 </form>
+{/if}
+{#if tokenSent}
+<h4>Check your wallet in a few, your insurance has been sent</h4>
+{/if}
+{#if checkExpiry}
+<button on:click={()=>{getExpiry = !getExpiry}}> Check Expiry </button>
+{#if getExpiry}
+{#await IP.GetExpiry()}
+    <div>Checking Expiry...</div>
+{:then result}
+    {#if result == "You don't own this asset"}
+    <div>"You don't own this asset"</div>
+    {:else}
+    <div>Your insurance {result[0] ? "has" : "has not"} expired</div>
+    <div>It {result[0] ? "expired" : "will expire"} on {result[1]}</div>
+    {/if}
+{/await}
+{/if}
 {/if}
