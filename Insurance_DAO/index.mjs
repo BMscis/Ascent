@@ -17,6 +17,8 @@ console.log('Hello, Insurer and InsuredParty!');
 console.log('Launching...');
 const ctcInsurer = accInsurer.contract(backend);
 const ctcInsuredParty = accInsuredParty.contract(backend, ctcInsurer.getInfo());
+console.log(ctcInsuredParty)
+//const chx = accInsuredParty.a.CheckExpiry
 
 const InsuredPartyInterface = {
   Insure : () => {
@@ -34,6 +36,9 @@ const InsuredPartyInterface = {
   PayInsurance: (i) => {
     console.log("PAY AMOUNT: ", stdlib.bigNumberToNumber(stdlib.formatCurrency(i)))
     return true
+  },
+  TokenDestroyed:() => {
+    console.log("Token Destroyed")
   }
 }
 const InsurerInterface = {
@@ -44,7 +49,7 @@ const InsurerInterface = {
     console.log("SHOW DIGEST: ", x)
     console.log("SHOW DIGEST: ", x.substring(0,31))
     console.log("SHOW STAMP: ", y)
-    return [x]
+    return x
   }
 }
 
@@ -63,5 +68,14 @@ await Promise.all([
     // implement InsuredParty's interact object here
   }),
 ]);
+
+const [hasExpired, expiry,owned] = await chx.check(0)
+if(owned){
+    console.log("Has expired: ", hasExpired)
+    console.log("Expiry: ", stdlib.bigNumberToNumber(expiry))
+    //return [hasExpired,stdlib.bigNumberToNumber(expiry),owned]
+}else{
+    console.log("You don't own this asset")
+}
 
 console.log('Goodbye, Insurer and InsuredParty!');

@@ -1,6 +1,6 @@
 import {loadStdlib} from '@reach-sh/stdlib';
 import * as backend from '../build/index.main.mjs'
-import {AcceptAndPay,CE,CrToken,InsuranceAmount, NewToken, TokenSent} from "./store/pStore"
+import {AcceptAddFunds, AcceptAndPay,CE,CrToken,IncreaseFunds,InsuranceAmount, NewToken, TokenSent} from "./store/pStore"
 import { ALGO_MyAlgoConnect as MyAlgoConnect } from '@reach-sh/stdlib';
 const stdlib =  loadStdlib("ALGO")
 stdlib.setWalletFallback(stdlib.walletFallback({
@@ -21,6 +21,9 @@ class Participants {
     async InformTimeout () {
         console.log("Times up")
     }
+    async NotEnoughFunds (){
+        console.log("NOT ENOUGH FUNDS")
+    }
     async ShowPolicy (tkn) {
         this.account.tokenAccept(tkn)
         console.log("TOKEN: ", tkn)
@@ -38,11 +41,30 @@ export class InsurerInterface extends Participants{
         super(undefined)
     }
     async StartingBalance (){
-        return [stdlib.parseCurrency(20,4),10]
+        return [stdlib.parseCurrency(20),10]
     }
     async Insure (){
         this.contract.p.Insurer(this)
         return JSON.stringify(await this.contract.getInfo())
+    }
+    async AddFunds (x,y) {
+        const currentBalance = stdlib.formatCurrency(x)
+        const addFunds = stdlib.formatCurrency(y)
+        console.log("Current Balance: ", currentBalance)
+        console.log("ADD FUNDS: ", addFunds)
+        IncreaseFunds.set([currentBalance,addFunds])
+        const accept = new Promise((resolve, reject) => {
+            AcceptAddFunds.subscribe(val => {
+                console.log("WAITING: ",val)
+                if(val){
+                    console.log("VAL?",val)
+                    this.AcceptAndPay = val
+                    resolve(this.AcceptAndPay)
+        }})})
+        if(!this.AcceptAndPay){
+            await accept
+        }
+        return this.AcceptAndPay
     }
     async ShowMeta (x,y) {
         console.log("SHOW DIGEST: ", x)
@@ -101,5 +123,18 @@ export class InsuredPartyInterface extends Participants{
         }else{
             return "You don't own this asset"
         }
+    }
+    async PlaceClaim(cl){
+        const [canClaim,claim] = await this.contract.a.CheckExpiry.PlaceClaim(cl)
+        if(canClaim){
+            console.log("Has claimed: ", canClaim)
+            console.log("Claim: ", stdlib.formatCurrency(claim))
+            return [canClaim,stdlib.formatCurrency(claim)]
+        }else{
+            return [canClaim]
+        }
+    }
+    async TokenDestroyed(){
+        console.log("TOKEN HAS BEEN DESTROYED")
     }
 }

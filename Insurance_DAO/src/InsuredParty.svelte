@@ -15,7 +15,9 @@ let payment = 0
 let makePay
 let checkExpiry = false
 let getExpiry = false
+let placeClaim = false
 let tokenSent = false
+let toClaim = -1
 const insure = async () => {
     const risk = {
         "Model": Model,
@@ -90,6 +92,15 @@ const unsubT = TokenSent.subscribe(val => {
 {/if}
 {#if checkExpiry}
 <button on:click={()=>{getExpiry = !getExpiry}}> Check Expiry </button>
+<form on:submit|preventDefault={()=>{placeClaim = !placeClaim}}>
+    <select bind:value={toClaim}>
+        <option value=0>Windscreen</option>
+        <option value=1>CarDamage</option>
+        <option value=2>ProperyDamage</option>
+        <option value=3>ThirdPersonDamage</option>
+    </select>
+    <button type="submit"> Place Claim </button>
+</form>
 {#if getExpiry}
 {#await IP.GetExpiry()}
     <div>Checking Expiry...</div>
@@ -99,6 +110,17 @@ const unsubT = TokenSent.subscribe(val => {
     {:else}
     <div>Your insurance {result[0] ? "has" : "has not"} expired</div>
     <div>It {result[0] ? "expired" : "will expire"} on {result[1]}</div>
+    {/if}
+{/await}
+{/if}
+{#if placeClaim}
+{#await IP.PlaceClaim(toClaim)}
+    <div>Placing claim...</div>
+{:then result}
+    {#if result[0] == false}
+    <div>"You don't own this asset"</div>
+    {:else}
+    <div>Claim of {result[1]} has been transfered to your wallet.</div>
     {/if}
 {/await}
 {/if}
